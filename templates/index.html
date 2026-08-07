@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Martins DeMatrix</title>
+  <style>
+    :root {
+      --bg-dark: #0d0202;
+      --card-bg: #1a0505;
+      --card-inner: #260808;
+      --bright-red: #ff1a1a;
+      --dark-red: #b30000;
+      --bright-gold: #ffd700;
+      --accent-gold: #ffae00;
+      --text-light: #fff8e7;
+      --text-muted: #d9b38c;
+      --border-red: rgba(255, 26, 26, 0.4);
+      --border-gold: rgba(255, 215, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 50% 0%, #330000 0%, #0d0202 80%);
+      color: var(--text-light);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(180deg, #2b0000 0%, #1a0505 100%);
+      border-bottom: 2px solid var(--bright-gold);
+      padding: 1rem 1.5rem;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 15px rgba(255, 215, 0, 0.15);
+    }
+
+    .brand-title {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: var(--bright-gold);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+
+    .user-pill {
+      background: var(--card-inner);
+      padding: 0.4rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      color: var(--bright-red);
+      border: 1px solid var(--bright-gold);
+      font-weight: 800;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1.2rem;
+      flex: 1;
+    }
+
+    .auth-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 80vh;
+    }
+
+    .auth-card {
+      background: var(--card-bg);
+      border: 2px solid var(--bright-gold);
+      border-radius: 14px;
+      padding: 2.2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 0 25px rgba(255, 26, 26, 0.3);
+    }
+
+    .auth-title {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: var(--bright-red);
+      font-size: 1.6rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      text-shadow: 0 0 8px rgba(255, 26, 26, 0.6);
+    }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--bright-gold);
+      font-weight: 700;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.8rem;
+      background-color: var(--card-inner);
+      border: 1px solid var(--border-gold);
+      border-radius: 8px;
+      color: var(--text-light);
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: var(--bright-red);
+      box-shadow: 0 0 8px var(--bright-red);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 900;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: transform 0.1s ease;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, var(--bright-gold) 100%);
+      color: #000;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+    }
+
+    .btn-red {
+      background: linear-gradient(135deg, var(--dark-red) 0%, var(--bright-red) 100%);
+      color: var(--text-light);
+      box-shadow: 0 0 12px rgba(255, 26, 26, 0.4);
+    }
+
+    .toggle-auth {
+      text-align: center;
+      margin-top: 1.2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .toggle-auth span {
+      color: var(--bright-gold);
+      cursor: pointer;
+      font-weight: 800;
+      text-decoration: underline;
+    }
+
+    #app-interface {
+      display: none;
+    }
+
+    .post-box {
+      background: var(--card-bg);
+      border: 1.5px solid var(--bright-gold);
+      border-radius: 12px;
+      padding: 1.2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      color: var(--bright-gold);
+      text-transform: uppercase;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      margin-bottom: 0.8rem;
+    }
+
+    .post-box textarea {
+      width: 100%;
+      height: 90px;
+      background-color: var(--card-inner);
+      border: 1px solid var(--border-gold);
+      border-radius: 8px;
+      color: var(--text-light);
+      padding: 0.8rem;
+      outline: none;
+      resize: none;
+      margin-bottom: 0.8rem;
+    }
+
+    .post-box textarea:focus {
+      border-color: var(--bright-red);
+    }
+
+    .post-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .post-actions .btn {
+      width: auto;
+      padding: 0.6rem 2rem;
+    }
+
+    .feed-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .post-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-red);
+      border-left: 5px solid var(--bright-gold);
+      border-radius: 10px;
+      padding: 1.2rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .post-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .post-author {
+      font-weight: 800;
+      color: var(--bright-red);
+    }
+
+    .post-time {
+      font-size: 0.75rem;
+      color: var(--bright-gold);
+    }
+
+    .post-content {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text-light);
+    }
+  </style>
+</head>
+<body>
+
+  <header id="main-header">
+    <div class="brand-title">DeMatrix Global</div>
+    <div id="logged-user-pill" class="user-pill"></div>
+  </header>
+
+  <div class="container">
+
+    <div id="auth-container" class="auth-wrapper">
+      
+      <!-- DEFAULT SCREEN: SIGN UP -->
+      <div id="signup-card" class="auth-card">
+        <h2 class="auth-title">Sign Up First</h2>
+        <form id="signup-form">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="signup-username" placeholder="Choose username" required />
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="signup-email" placeholder="enter@email.com" required />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="signup-password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-gold">Create Account</button>
+        </form>
+        <div class="toggle-auth">
+          Already registered? <span onclick="showAuth('login')">Log In</span>
+        </div>
+      </div>
+
+      <!-- SECOND SCREEN: LOG IN -->
+      <div id="login-card" class="auth-card" style="display: none;">
+        <h2 class="auth-title">Account Login</h2>
+        <form id="login-form">
+          <div class="form-group">
+            <label>Username or Email</label>
+            <input type="text" id="login-identity" placeholder="Username or Email" required />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-red">Log In</button>
+        </form>
+        <div class="toggle-auth">
+          Need an account? <span onclick="showAuth('signup')">Sign Up First</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PUBLIC CHAT SECTION (UNLOCKED ONLY AFTER LOGIN) -->
+    <div id="app-interface">
+      <div class="post-box">
+        <div class="section-title">Public Chat Stream</div>
+        <textarea id="post-input" placeholder="Write a message for all users to see..."></textarea>
+        <div class="post-actions">
+          <button type="button" class="btn btn-red" onclick="submitPost()">Post Message</button>
+        </div>
+      </div>
+
+      <div id="feed-container" class="feed-container"></div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function showAuth(type) {
+      document.getElementById('signup-card').style.display = type === 'signup' ? 'block' : 'none';
+      document.getElementById('login-card').style.display = type === 'login' ? 'block' : 'none';
+    }
+
+    document.getElementById('signup-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('signup-username').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value.trim();
+
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("Registration successful! Please log in now.");
+        document.getElementById('signup-form').reset();
+        showAuth('login');
+      } else {
+        alert(data.error || "Sign up failed.");
+      }
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const identity = document.getElementById('login-identity').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        currentUser = data.username;
+        startUserSession();
+      } else {
+        alert(data.error || "Invalid login credentials.");
+      }
+    });
+
+    function startUserSession() {
+      document.getElementById('main-header').style.display = 'flex';
+      document.getElementById('auth-container').style.display = 'none';
+      document.getElementById('app-interface').style.display = 'block';
+
+      const userPill = document.getElementById('logged-user-pill');
+      userPill.innerText = `@${currentUser}`;
+
+      fetchPosts();
+      setInterval(fetchPosts, 3000);
+    }
+
+    async function submitPost() {
+      const input = document.getElementById('post-input');
+      const text = input.value.trim();
+      if (!text) {
+        alert("Please write a message before posting.");
+        return;
+      }
+
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: currentUser, content: text })
+      });
+
+      if (res.ok) {
+        input.value = '';
+        fetchPosts();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Posting failed.");
+      }
+    }
+
+    async function fetchPosts() {
+      const res = await fetch('/api/posts');
+      if (!res.ok) return;
+      const posts = await res.json();
+      
+      const container = document.getElementById('feed-container');
+      container.innerHTML = '';
+      posts.forEach(post => {
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.innerHTML = `
+          <div class="post-header">
+            <span class="post-author">@${post.author}</span>
+            <span class="post-time">${post.timestamp}</span>
+          </div>
+          <div class="post-content">${post.content}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
