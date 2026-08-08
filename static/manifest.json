@@ -1,6 +1,7 @@
 {
   "name": "Martins DeMatrix Global",
   "short_name": "DeMatrix",
+  "description": "DeMatrix Report card page for DeMatrix",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
@@ -10,7 +11,8 @@
     {
       "src": "/static/martinsdematrix.jpg",
       "sizes": "192x192 512x512",
-      "type": "image/jpeg"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     }
   ]
 }
