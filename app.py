@@ -5,7 +5,10 @@ import time
 
 app = Flask(__name__)
 app.secret_key = 'dematrix_red_gold_secret'
-DB_FILE = 'dematrix.db'
+
+# Use Render persistent disk directory if available, else local directory
+DATA_DIR = '/var/data' if os.path.exists('/var/data') else '.'
+DB_FILE = os.path.join(DATA_DIR, 'dematrix.db')
 
 def get_db():
     conn = sqlite3.connect(DB_FILE)
@@ -109,7 +112,6 @@ def heartbeat():
 def get_online_users():
     conn = get_db()
     cursor = conn.cursor()
-    # Users active in the last 15 seconds are considered online
     cutoff = time.time() - 15
     cursor.execute("SELECT username FROM users WHERE last_seen > ? ORDER BY username ASC", (cutoff,))
     users = [row['username'] for row in cursor.fetchall()]
@@ -168,7 +170,6 @@ def handle_private_messages():
         conn.close()
         return jsonify({'error': 'Both user parameters are required'}), 400
 
-    # Mark unread messages as read when fetched
     cursor.execute("UPDATE private_messages SET is_read = 1 WHERE recipient = ? AND sender = ?", (user1, user2))
     conn.commit()
 
