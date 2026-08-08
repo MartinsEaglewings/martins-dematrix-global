@@ -27,7 +27,7 @@ def init_db():
     cursor = conn.cursor()
     
     if DATABASE_URL:
-        # PostgreSQL syntax
+        # PostgreSQL syntax - Create tables if they don't exist
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -37,6 +37,12 @@ def init_db():
                 last_seen DOUBLE PRECISION DEFAULT 0
             );
         ''')
+        
+        # Ensure 'last_seen' column exists in case 'users' table was created by another project
+        cursor.execute('''
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen DOUBLE PRECISION DEFAULT 0;
+        ''')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS posts (
                 id SERIAL PRIMARY KEY,
