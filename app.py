@@ -99,7 +99,7 @@ def home():
 def signup():
     data = request.get_json() or {}
     username = data.get('username', '').strip()
-    email = data.get('email', '').strip()
+    email = data.get('email', '').strip().lower()
     password = data.get('password', '').strip()
 
     if not username or not email or not password:
@@ -127,30 +127,42 @@ def login():
     identity = data.get('identity', '').strip()
     password = data.get('password', '').strip()
 
+    if not identity or not password:
+        return jsonify({'error': 'Please enter both username/email and password'}), 400
+
     conn = get_db()
     if DATABASE_URL:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        cursor.execute("SELECT * FROM users WHERE (username = %s OR email = %s) AND password = %s", (identity, identity, password))
+        cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s)", (identity, identity))
     else:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE (username = ? OR email = ?) AND password = ?", (identity, identity, password))
+        cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)", (identity, identity))
     
     user = cursor.fetchone()
 
-    if user:
-        if DATABASE_URL:
-            cursor.execute("UPDATE users SET last_seen = %s WHERE username = %s", (time.time(), user['username']))
-        else:
-            cursor.execute("UPDATE users SET last_seen = ? WHERE username = ?", (time.time(), user['username']))
-        conn.commit()
+    if not user:
         cursor.close()
         conn.close()
-        session['user'] = user['username']
-        return jsonify({'message': 'Login successful', 'username': user['username']}), 200
+        return jsonify({'error': 'No account found with this username or email'}), 404
+
+    # Verify password match
+    if user['password'] != password:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Incorrect password'}), 401
+
+    # Login successful - Update last_seen
+    if DATABASE_URL:
+        cursor.execute("UPDATE users SET last_seen = %s WHERE id = %s", (time.time(), user['id']))
+    else:
+        cursor.execute("UPDATE users SET last_seen = ? WHERE id = ?", (time.time(), user['id']))
     
+    conn.commit()
     cursor.close()
     conn.close()
-    return jsonify({'error': 'Invalid credentials'}), 401
+    
+    session['user'] = user['username']
+    return jsonify({'message': 'Login successful', 'username': user['username']}), 200
 
 @app.route('/api/heartbeat', methods=['POST'])
 def heartbeat():
