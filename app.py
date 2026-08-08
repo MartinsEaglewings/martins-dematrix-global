@@ -1,51 +1,92 @@
 from flask import Flask, request, jsonify, render_template, session
 import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
 import time
 
 app = Flask(__name__)
 app.secret_key = 'dematrix_red_gold_secret'
 
-# Use Render persistent disk directory if available, else local directory
-DATA_DIR = '/var/data' if os.path.exists('/var/data') else '.'
-DB_FILE = os.path.join(DATA_DIR, 'dematrix.db')
+# Use PostgreSQL if DATABASE_URL is provided by Render, else fallback to SQLite locally
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if DATABASE_URL:
+        # Render PostgreSQL connection
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn
+    else:
+        # Local SQLite fallback
+        conn = sqlite3.connect('dematrix.db')
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            last_seen REAL DEFAULT 0
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS posts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            author TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS private_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender TEXT NOT NULL,
-            recipient TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_read INTEGER DEFAULT 0
-        )
-    ''')
+    
+    if DATABASE_URL:
+        # PostgreSQL syntax
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                email VARCHAR(150) UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                last_seen DOUBLE PRECISION DEFAULT 0
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                author VARCHAR(100) NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS private_messages (
+                id SERIAL PRIMARY KEY,
+                sender VARCHAR(100) NOT NULL,
+                recipient VARCHAR(100) NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_read INTEGER DEFAULT 0
+            );
+        ''')
+    else:
+        # SQLite syntax
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                last_seen REAL DEFAULT 0
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                author TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS private_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_read INTEGER DEFAULT 0
+            );
+        ''')
+
     conn.commit()
+    cursor.close()
     conn.close()
 
 init_db()
@@ -67,12 +108,17 @@ def signup():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (username, email, password, last_seen) VALUES (?, ?, ?, ?)", 
-                       (username, email, password, time.time()))
+        if DATABASE_URL:
+            cursor.execute("INSERT INTO users (username, email, password, last_seen) VALUES (%s, %s, %s, %s)", 
+                           (username, email, password, time.time()))
+        else:
+            cursor.execute("INSERT INTO users (username, email, password, last_seen) VALUES (?, ?, ?, ?)", 
+                           (username, email, password, time.time()))
         conn.commit()
+        cursor.close()
         conn.close()
         return jsonify({'message': 'Registration successful! Please log in now.'}), 201
-    except sqlite3.IntegrityError:
+    except Exception:
         return jsonify({'error': 'Username or email already exists'}), 400
 
 @app.route('/api/login', methods=['POST'])
@@ -82,17 +128,27 @@ def login():
     password = data.get('password', '').strip()
 
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE (username = ? OR email = ?) AND password = ?", (identity, identity, password))
+    if DATABASE_URL:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute("SELECT * FROM users WHERE (username = %s OR email = %s) AND password = %s", (identity, identity, password))
+    else:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE (username = ? OR email = ?) AND password = ?", (identity, identity, password))
+    
     user = cursor.fetchone()
 
     if user:
-        cursor.execute("UPDATE users SET last_seen = ? WHERE username = ?", (time.time(), user['username']))
+        if DATABASE_URL:
+            cursor.execute("UPDATE users SET last_seen = %s WHERE username = %s", (time.time(), user['username']))
+        else:
+            cursor.execute("UPDATE users SET last_seen = ? WHERE username = ?", (time.time(), user['username']))
         conn.commit()
+        cursor.close()
         conn.close()
         session['user'] = user['username']
         return jsonify({'message': 'Login successful', 'username': user['username']}), 200
     
+    cursor.close()
     conn.close()
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -103,25 +159,34 @@ def heartbeat():
     if username:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET last_seen = ? WHERE username = ?", (time.time(), username))
+        if DATABASE_URL:
+            cursor.execute("UPDATE users SET last_seen = %s WHERE username = %s", (time.time(), username))
+        else:
+            cursor.execute("UPDATE users SET last_seen = ? WHERE username = ?", (time.time(), username))
         conn.commit()
+        cursor.close()
         conn.close()
     return jsonify({'status': 'ok'})
 
 @app.route('/api/online-users', methods=['GET'])
 def get_online_users():
     conn = get_db()
-    cursor = conn.cursor()
     cutoff = time.time() - 15
-    cursor.execute("SELECT username FROM users WHERE last_seen > ? ORDER BY username ASC", (cutoff,))
+    if DATABASE_URL:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute("SELECT username FROM users WHERE last_seen > %s ORDER BY username ASC", (cutoff,))
+    else:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE last_seen > ? ORDER BY username ASC", (cutoff,))
+    
     users = [row['username'] for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     return jsonify(users)
 
 @app.route('/api/posts', methods=['GET', 'POST'])
 def handle_posts():
     conn = get_db()
-    cursor = conn.cursor()
 
     if request.method == 'POST':
         data = request.get_json() or {}
@@ -132,20 +197,31 @@ def handle_posts():
             conn.close()
             return jsonify({'error': 'Post content cannot be empty'}), 400
 
-        cursor.execute("INSERT INTO posts (author, content) VALUES (?, ?)", (author, content))
+        cursor = conn.cursor()
+        if DATABASE_URL:
+            cursor.execute("INSERT INTO posts (author, content) VALUES (%s, %s)", (author, content))
+        else:
+            cursor.execute("INSERT INTO posts (author, content) VALUES (?, ?)", (author, content))
         conn.commit()
+        cursor.close()
         conn.close()
         return jsonify({'message': 'Post created successfully'}), 201
 
-    cursor.execute("SELECT author, content, timestamp FROM posts ORDER BY id DESC")
+    if DATABASE_URL:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute("SELECT author, content, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM posts ORDER BY id DESC")
+    else:
+        cursor = conn.cursor()
+        cursor.execute("SELECT author, content, timestamp FROM posts ORDER BY id DESC")
+    
     posts = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     return jsonify(posts)
 
 @app.route('/api/private-messages', methods=['GET', 'POST'])
 def handle_private_messages():
     conn = get_db()
-    cursor = conn.cursor()
 
     if request.method == 'POST':
         data = request.get_json() or {}
@@ -157,9 +233,15 @@ def handle_private_messages():
             conn.close()
             return jsonify({'error': 'Recipient and content are required'}), 400
 
-        cursor.execute("INSERT INTO private_messages (sender, recipient, content) VALUES (?, ?, ?)", 
-                       (sender, recipient, content))
+        cursor = conn.cursor()
+        if DATABASE_URL:
+            cursor.execute("INSERT INTO private_messages (sender, recipient, content) VALUES (%s, %s, %s)", 
+                           (sender, recipient, content))
+        else:
+            cursor.execute("INSERT INTO private_messages (sender, recipient, content) VALUES (?, ?, ?)", 
+                           (sender, recipient, content))
         conn.commit()
+        cursor.close()
         conn.close()
         return jsonify({'message': 'Private message sent'}), 201
 
@@ -170,16 +252,32 @@ def handle_private_messages():
         conn.close()
         return jsonify({'error': 'Both user parameters are required'}), 400
 
-    cursor.execute("UPDATE private_messages SET is_read = 1 WHERE recipient = ? AND sender = ?", (user1, user2))
+    cursor = conn.cursor()
+    if DATABASE_URL:
+        cursor.execute("UPDATE private_messages SET is_read = 1 WHERE recipient = %s AND sender = %s", (user1, user2))
+    else:
+        cursor.execute("UPDATE private_messages SET is_read = 1 WHERE recipient = ? AND sender = ?", (user1, user2))
     conn.commit()
 
-    cursor.execute('''
-        SELECT sender, recipient, content, timestamp 
-        FROM private_messages 
-        WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
-        ORDER BY id ASC
-    ''', (user1, user2, user2, user1))
+    if DATABASE_URL:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute('''
+            SELECT sender, recipient, content, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp 
+            FROM private_messages 
+            WHERE (sender = %s AND recipient = %s) OR (sender = %s AND recipient = %s)
+            ORDER BY id ASC
+        ''', (user1, user2, user2, user1))
+    else:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT sender, recipient, content, timestamp 
+            FROM private_messages 
+            WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
+            ORDER BY id ASC
+        ''', (user1, user2, user2, user1))
+
     messages = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     return jsonify(messages)
 
@@ -190,15 +288,25 @@ def get_unread_counts():
         return jsonify({})
 
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT sender, COUNT(*) as count 
-        FROM private_messages 
-        WHERE recipient = ? AND is_read = 0 
-        GROUP BY sender
-    ''', (username,))
+    if DATABASE_URL:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute('''
+            SELECT sender, COUNT(*) as count 
+            FROM private_messages 
+            WHERE recipient = %s AND is_read = 0 
+            GROUP BY sender
+        ''', (username,))
+    else:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT sender, COUNT(*) as count 
+            FROM private_messages 
+            WHERE recipient = ? AND is_read = 0 
+            GROUP BY sender
+        ''', (username,))
     
     counts = {row['sender']: row['count'] for row in cursor.fetchall()}
+    cursor.close()
     conn.close()
     return jsonify(counts)
 
